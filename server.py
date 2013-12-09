@@ -3,12 +3,15 @@ import SocketServer
 import socket
 import argparse
 import time
+import yaml
+import os
 import dns.message
 import dns.name
 import dns.rcode
 import dns.rdatatype
 
-class DnsReaderServer(SocketServer.ThreadingUDPServer):
+#class DnsReaderServer(SocketServer.ThreadingUDPServer):
+class DnsReaderServer(SocketServer.UDPServer):
     """
     SocketServer.ThreadingUDPServer 
 
@@ -16,8 +19,12 @@ class DnsReaderServer(SocketServer.ThreadingUDPServer):
     
     - RequestHandlerClass
     """
-    def __init__(self,server_address,RequestHandlerClass):
-        SocketServer.ThreadingUDPServer.__init__(self,server_address,RequestHandlerClass)
+    def __init__(self,server_address,RequestHandlerClass, directory):
+        #SocketServer.ThreadingUDPServer.__init__(self,server_address,RequestHandlerClass)
+        SocketServer.UDPServer.__init__(self,server_address,RequestHandlerClass)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        self.directory = directory
 
 class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     """
@@ -25,6 +32,59 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     """
     def __init__(self, request, client_address, server):
         SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
+
+    def write_yaml(self, nsid, qname, serial):
+
+        now = int(time.time())
+        if qname == '.':
+            qname = 'root'
+        else:
+            #remove trailing dot
+            qname = qname[:-1]
+
+        #We didn't get an NSID
+        if nsid == "None":
+            #we can only identify the node if we get the node_name as the qname
+            if 'l.root-servers.org' not in qname:
+                return
+            else:
+                node_name = qname
+        else:
+            node_name = nsid
+
+        node_file = os.path.join(self.server.directory, "%s.yaml" % node_name)
+
+        if os.path.exists(node_file):
+            node_doc = file(node_file, 'r+')
+        else:
+            node_doc = file(node_file, 'w+')
+
+        node = yaml.load(node_doc)
+
+        if not node:
+            node = { 'name': node_name, 'nsid': { 
+                        'value': None, 
+                        'update': 0 },
+                     'domains': { 
+                        qname : { 
+                            'serial' : None, 
+                            'update' : 0 },
+                        },
+                    }
+
+        node['nsid']['value'] = nsid
+        node['nsid']['update'] = now
+        try:
+            node['domains'][qname]['serial'] = serial
+            node['domains'][qname]['update'] = now
+        except KeyError:
+            node['domains'][qname] = { 'serial' : serial, 'update' : now }
+        #rewrite the file
+        node_doc.seek(0)
+        yaml.dump(node,node_doc, indent=4, default_flow_style = False)
+        node_doc.close()
+
+
 
     def handle(self):
             """
@@ -37,6 +97,7 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
             nsid = None
             serial = None
             data = str(self.request[0]).strip()
+            node_file = None
             #Sending machine
             incoming = self.request[1]
             try:
@@ -52,8 +113,9 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
                     if ans.rdtype == dns.rdatatype.SOA:
                         serial =  ans[0].serial
                 print "%s: %s %s @%s" % (nsid, qname, serial, current_time)
-                if message.rcode() != dns.rcode.NOERROR:
-                    print "%s: %s %s @%s" % (nsid, qname, serial, current_time)
+                self.write_yaml(str(nsid), qname.to_text(), serial)
+                #if message.rcode() != dns.rcode.NOERROR:
+                #    print "%s: %s %s @%s" % (nsid, qname, serial, current_time)
             except dns.name.BadLabelType:
                 #Error processing lable (bit flip?)
                 pass 
@@ -64,10 +126,11 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
 def main():
     ''' main function for using on cli'''
     parser = argparse.ArgumentParser(description="Deployment script for atlas anchor")
-    parser.add_argument('--listen', metavar="0.0.0.0:6969", default="0.0.0.0:6969", help='listen on address:port ')
+    parser.add_argument('-l', '--listen', metavar="0.0.0.0:6969", default="0.0.0.0:6969", help='listen on address:port ')
+    parser.add_argument('-d', '--directory', metavar="/tmp/dnsdata/", default="/tmp/dnsdata/", help='Directory to store node information')
     args = parser.parse_args()
     host, port = args.listen.split(":")
-    server = DnsReaderServer((host, int(port)), DnsReaderHanlder )
+    server = DnsReaderServer((host, int(port)), DnsReaderHanlder, args.directory )
     server.serve_forever()
 
 if __name__ == "__main__":
