@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 import SocketServer
+import struct
 import socket
 import argparse
 import time
 import yaml
+import json
 import os
 import dns.message
 import dns.name
@@ -19,12 +21,13 @@ class DnsReaderServer(SocketServer.UDPServer):
     
     - RequestHandlerClass
     """
-    def __init__(self,server_address,RequestHandlerClass, directory):
+    def __init__(self,server_address,RequestHandlerClass, directory, zabbix_server):
         #SocketServer.ThreadingUDPServer.__init__(self,server_address,RequestHandlerClass)
         SocketServer.UDPServer.__init__(self,server_address,RequestHandlerClass)
         if not os.path.exists(directory):
             os.makedirs(directory)
         self.directory = directory
+        self.zabbix_server = zabbix_server
 
 class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     """
@@ -33,24 +36,68 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     def __init__(self, request, client_address, server):
         SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
-    def write_yaml(self, nsid, qname, serial):
-
-        now = int(time.time())
-        if qname == '.':
-            qname = 'root'
-        else:
-            #remove trailing dot
-            qname = qname[:-1]
-
-        #We didn't get an NSID
+    def set_node_name(self, nsid):
         if nsid == "None":
             #we can only identify the node if we get the node_name as the qname
             if 'l.root-servers.org' not in qname:
-                return
+                return None
             else:
-                node_name = qname
+                return qname
         else:
-            node_name = nsid
+            return nsid
+    def _zabbix_recv_all(self, sock):
+        buf = ''
+        zbx_hdr_size = 13
+        while len(buf)<zbx_hdr_size:
+            chunk = sock.recv(zbx_hdr_size-len(buf))
+            if not chunk:
+                return buf
+            buf += chunk
+        return buf
+
+    def _send_to_zabbix(self, data):
+
+        zbx_host, zbx_port = self.server.zabbix_server.split(':')
+        try:
+            zbx_sock = socket.socket()
+            zbx_sock.connect((zbx_host, int(zbx_port)))
+            zbx_sock.sendall(data)
+        except (socket.gaierror, socket.error) as e:
+            zbx_sock.close()
+            raise Exception(e[1])
+        else:
+            #try:
+            zbx_srv_resp_hdr = self._zabbix_recv_all(zbx_sock)
+            zbx_srv_resp_body_len = struct.unpack('<Q', zbx_srv_resp_hdr[5:])[0]
+            zbx_srv_resp_body = zbx_sock.recv(zbx_srv_resp_body_len)
+            zbx_sock.close()
+            #except:
+            #    zbx_sock.close()
+            #    raise Exception("Error while sending data to Zabbix")
+
+        return json.loads(zbx_srv_resp_body)
+
+    def send_zabbix_data(self, host, key, value):
+        data = [{
+            'host': host,
+            'key': key,
+            'value': value
+            }]
+        body = json.dumps({ 'request' : 'sender data', 'data' : data })
+        message = 'ZBXD\1' + struct.pack('<Q',  len(body)) + body
+        response = self._send_to_zabbix(message)
+        print response['info']
+        
+
+    def format_qname (self, qname):
+        if qname == '.':
+            return 'root'
+        else:
+            return qname[:-1]
+
+    def write_yaml(self, node_name, nsid, qname, serial):
+
+        now = int(time.time())
 
         node_file = os.path.join(self.server.directory, "%s.yaml" % node_name)
 
@@ -102,17 +149,26 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
             try:
                 message = dns.message.from_wire(data)
                 current_time = int(time.time())
-                qname = message.question[0].name
+                qname = self.format_qname(message.question[0].name.to_text())
                 for opt in message.options: 
                       if opt.otype == dns.edns.NSID: 
                           nsid = opt.data
                           if '.' not in nsid:
                               nsid = nsid.decode("hex")
+                node_name = self.set_node_name(nsid)
                 for ans in message.answer:
                     if ans.rdtype == dns.rdatatype.SOA:
                         serial =  ans[0].serial
                 print "%s: %s %s @%s" % (nsid, qname, serial, current_time)
-                self.write_yaml(str(nsid), qname.to_text(), serial)
+                if node_name:
+                    if serial:
+                        zabbix_key = 'spoof_{}_serial'.format(qname.replace('.','_'))
+                        zabbix_value = serial
+                    else:
+                        zabbix_key = 'spoof_nsid'
+                        zabbix_value = nsid
+                    self.write_yaml(node_name, str(nsid), qname, serial)
+                    self.send_zabbix_data(node_name, zabbix_key, zabbix_value)
                 #if message.rcode() != dns.rcode.NOERROR:
                 #    print "%s: %s %s @%s" % (nsid, qname, serial, current_time)
             except dns.name.BadLabelType:
@@ -126,10 +182,11 @@ def main():
     ''' main function for using on cli'''
     parser = argparse.ArgumentParser(description="Deployment script for atlas anchor")
     parser.add_argument('-l', '--listen', metavar="0.0.0.0:6969", default="0.0.0.0:6969", help='listen on address:port ')
+    parser.add_argument('-z', '--zabbix-server', metavar="localhost:10051", default="localhost:10051", help='Zabbix trapper server')
     parser.add_argument('-d', '--directory', metavar="/tmp/dnsdata/", default="/tmp/dnsdata/", help='Directory to store node information')
     args = parser.parse_args()
     host, port = args.listen.split(":")
-    server = DnsReaderServer((host, int(port)), DnsReaderHanlder, args.directory )
+    server = DnsReaderServer((host, int(port)), DnsReaderHanlder, args.directory, args.zabbix_server )
     server.serve_forever()
 
 if __name__ == "__main__":
