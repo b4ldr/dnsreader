@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 import SocketServer
 import socket
 import argparse
@@ -64,21 +64,20 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
         if not node:
             node = { 'name': node_name, 'nsid': { 
                         'value': None, 
-                        'update': 0 },
-                     'domains': { 
-                        qname : { 
-                            'serial' : None, 
-                            'update' : 0 },
-                        },
+                        'updated': 0 },
+                     'domains': { },
                     }
 
         node['nsid']['value'] = nsid
-        node['nsid']['update'] = now
-        try:
-            node['domains'][qname]['serial'] = serial
-            node['domains'][qname]['update'] = now
-        except KeyError:
-            node['domains'][qname] = { 'serial' : serial, 'update' : now }
+        if nsid:
+            node['nsid']['updated'] = now
+
+        if serial:
+            try:
+                node['domains'][qname]['serial'] = serial
+                node['domains'][qname]['updated'] = now
+            except KeyError:
+                node['domains'][qname] = { 'serial' : serial, 'updated' : now }
         #rewrite the file
         node_doc.seek(0)
         yaml.dump(node,node_doc, indent=4, default_flow_style = False)
