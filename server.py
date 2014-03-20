@@ -180,7 +180,7 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
 
 def main():
     ''' main function for using on cli'''
-    parser = argparse.ArgumentParser(description="Deployment script for atlas anchor")
+    parser = argparse.ArgumentParser(description='dns spoof monitoring script')
     parser.add_argument('-l', '--listen', metavar="0.0.0.0:6969", default="0.0.0.0:6969", help='listen on address:port ')
     parser.add_argument('-z', '--zabbix-server', metavar="localhost:10051", default="localhost:10051", help='Zabbix trapper server')
     parser.add_argument('-d', '--directory', metavar="/tmp/dnsdata/", default="/tmp/dnsdata/", help='Directory to store node information')
