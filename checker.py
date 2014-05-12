@@ -124,7 +124,7 @@ def check_domain(node, domain, node_messages):
 
     return status
 
-def check_node(node_file, domains=['root', 'arpa', 'root-servers.net']):
+def check_node(node_file, domains):
     
     node_name = node_file.split('/')[-1].rstrip('.yaml')
     node_messages = NodeMessages(node_name)
@@ -145,32 +145,38 @@ def check_node(node_file, domains=['root', 'arpa', 'root-servers.net']):
         if lag:
              node_messages.add_domain_error(domain, 'NSID not recived for %s' % (lag))
 
-    for domain in domains:
-        check_domain(node, domain, node_messages)
+    if domains:
+        for domain in domains:
+            check_domain(node, domain, node_messages)
 
     return node_messages
 
-def check_nodes(nodes_directory, results_directory):
+def check_nodes(nodes, results_directory, domains):
     messages = []
-    for node_file in os.listdir(nodes_directory):
-        if node_file.endswith('l.root-servers.org.yaml'):
-            node_path = os.path.join(nodes_directory, node_file)
-
-            node_doc = open(node_path, 'r')
-            node = yaml.load(node_doc)
-
-            if node['status']['operational']:
-                node_result_path = os.path.join(results_directory, node_file)
-            	messages.append(check_node(node_result_path))
+    for node in nodes:
+        #correctly qulify domain
+        if node[-1] != '.':
+            node += '.'
+        node_result_path = os.path.join(results_directory, '{}yaml'.format(node))
+        messages.append(check_node(node_result_path, domains))
     return messages
 
 def main():
     ''' main function for using on cli'''
+    domains = None
     parser = argparse.ArgumentParser(description="Deployment script for atlas anchor")
-    parser.add_argument('-N', '--node-directory', metavar="/etc/hierdata/nodes/", default="/etc/hierdata/nodes/", help='Directory to store node information')
-    parser.add_argument('-R', '--results-directory', metavar="/tmp/dnsdata/", default="/tmp/dnsdata/", help='Directory to store node information')
+    parser.add_argument('-N', '--node-file', default='nodes.txt', 
+            help='file containing a list of nodes (one per line) that we should report one')
+    parser.add_argument('-R', '--results-directory', metavar='/tmp/dnsdata/', 
+            default='/tmp/dnsdata/', help='Directory where server componet writes output')
+    parser.add_argument('-D', '--domains', 
+            help='comma seperated list of domains')
     args = parser.parse_args()
-    messages = check_nodes(args.node_directory, args.results_directory)
+    if args.domains:
+        domains = args.domains.split(',')
+    with open(args.node_file) as f:
+        nodes = f.read().splitlines()
+    messages = check_nodes(nodes, args.results_directory, domains)
     for message in messages:
         message.print_error_report()
 
