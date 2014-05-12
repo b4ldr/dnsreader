@@ -30,6 +30,26 @@ In the simplest example i have the following set up.
 ##server
     * ./server.py --yaml -f example.net
         - this will output yaml files for each dnspacket recived.  
-        - the filter option is used for the nsid check. if we recive a response with a qname that matches this filter 
+        - the filter option is used for the nsid check. if we recive a response that has no nsid and the qname ends with this filter then we will use this value to identify the node.  this allows us to identify nodes that can reach us but are not senting an nsid.
+    * TODO: explain zabbix configuration
 
-        
+##Yaml Output
+anycastnode1.ams.example.net.yaml
+```yaml
+domains:
+    example.com:
+        serial: 2014051200
+        updated: 1399898912
+name: anycastnode1.ams.example.net
+nsid:
+    updated: 1399898917
+    value: anycastnode1.ams.example.net
+``` 
+
+    * domains: hash of domains that have been recived.  the key is the domain name and each value conatins
+        - updated: unix time stamp when we last recived a serial for this domain
+        - serial: the serial number from the soa we recived
+    * name: this is what we have identified as the node name and relates to the --filter-domain and the nsid check explaind above
+    * nsid: this indicats the last nsid value we recived and when we recived it
+
+
