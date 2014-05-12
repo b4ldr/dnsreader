@@ -3,12 +3,12 @@ dnsreader
 
 These scripts are here to monitor dns anycast deployments.  There are three componets
 
-    * client.py - this is used to send spoofed dns queries to an anycast address
-    * server.py - this is expected to listen on spoofed address:port specifed in the client.  
-        When a packet is recived some preocessing is preformed and results are either written 
-        to zabbix or a yaml file
-    * checker.py - this script reads the yaml files produced in the server.py script and prints 
-        a rport to stdout (TODO: make this script compatible with nagios)
+* client.py - this is used to send spoofed dns queries to an anycast address
+* server.py - this is expected to listen on spoofed address:port specifed in the client.  
+    When a packet is recived some preocessing is preformed and results are either written 
+    to zabbix or a yaml file
+* checker.py - this script reads the yaml files produced in the server.py script and prints 
+    a rport to stdout (TODO: make this script compatible with nagios)
 
 #Example
 
@@ -50,14 +50,14 @@ TODO: explain zabbix configuration
 The checker is used to parse the yaml files preduced above and print a report to stdout if any errors are found, intended for a cronjob
 
 `./checker.py -D 'example.com'` this will check for yaml files produced by the server componet and print a report containing errors based on the following checks:
-    * The server has has not produced a file for one of the nodes specified in the node list
-    * we have never recived an nsid for this node
-    * we have not recived an nsid for this node in the last day (TODO: make this an arg)
-    * for each domain specified check:
-        - we have recived an soa
-        - we have not recived an soa in the last day (TODO: make this an arg)
-        - the last serial we have matchs the one currently recived from the MNAME for 
-            this domain (TODO: should be able to override this)
+* The server has has not produced a file for one of the nodes specified in the node list
+* we have never recived an nsid for this node
+* we have not recived an nsid for this node in the last day (TODO: make this an arg)
+* for each domain specified check:
+    - we have recived an soa
+    - we have not recived an soa in the last day (TODO: make this an arg)
+    - the last serial we have matchs the one currently recived from the MNAME for 
+        this domain (TODO: should be able to override this)
 
 #Yaml Output
 anycastnode1.ams.example.net.yaml
@@ -72,12 +72,12 @@ nsid:
     value: anycastnode1.ams.example.net
 ``` 
 
-    * domains: hash of domains that have been recived.  the key is the domain name and each 
-        value conatins
-        - updated: unix time stamp when we last recived a serial for this domain
-        - serial: the serial number from the soa we recived
-    * name: this is what we have identified as the node name and relates to the --filter-domain 
-        and the nsid check explaind above
-    * nsid: this indicats the last nsid value we recived and when we recived it
+* domains: hash of domains that have been recived.  the key is the domain name and each 
+    value conatins
+    - updated: unix time stamp when we last recived a serial for this domain
+    - serial: the serial number from the soa we recived
+* name: this is what we have identified as the node name and relates to the --filter-domain 
+    and the nsid check explaind above
+* nsid: this indicats the last nsid value we recived and when we recived it
 
 
