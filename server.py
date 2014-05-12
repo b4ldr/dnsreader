@@ -21,13 +21,15 @@ class DnsReaderServer(SocketServer.UDPServer):
     
     - RequestHandlerClass
     '''
-    def __init__(self,server_address,RequestHandlerClass, directory, zabbix_server):
+    def __init__(self,server_address,RequestHandlerClass, directory, 
+            zabbix_server, filter_domain):
         #SocketServer.ThreadingUDPServer.__init__(self,server_address,RequestHandlerClass)
         SocketServer.UDPServer.__init__(self,server_address,RequestHandlerClass)
         if not os.path.exists(directory):
             os.makedirs(directory)
         self.directory = directory
         self.zabbix_server = zabbix_server
+        self.filter_domain = filter_domain
 
 class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     '''
@@ -47,7 +49,7 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     def set_node_name(self, nsid):
         if nsid == "None":
             #we can only identify the node if we get the node_name as the qname
-            if 'l.root-servers.org' not in qname:
+            if self.filter_domain not in qname:
                 return None
             else:
                 return qname
@@ -210,18 +212,25 @@ class DnsReaderHanlderYaml(DnsReaderHanlder):
 def main():
     ''' main function for using on cli'''
     parser = argparse.ArgumentParser(description='dns spoof monitoring script')
-    parser.add_argument('-l', '--listen', metavar="0.0.0.0:6969", default="0.0.0.0:6969", help='listen on address:port ')
-    parser.add_argument('-z', '--zabbix-server', metavar="localhost:10051", default="localhost:10051", help='Zabbix trapper server')
-    parser.add_argument('-d', '--directory', metavar="/tmp/dnsdata/", default="/tmp/dnsdata/", help='Directory to store node information')
+    parser.add_argument('-l', '--listen', metavar="0.0.0.0:6969", 
+            default="0.0.0.0:6969", help='listen on address:port ')
+    parser.add_argument('-z', '--zabbix-server', metavar="localhost:10051", 
+            default="localhost:10051", help='Zabbix trapper server')
+    parser.add_argument('-d', '--directory', metavar="/tmp/dnsdata/", 
+            default="/tmp/dnsdata/", help='Directory to store node information')
+    parser.add_argument('-f', '--filter-domain', required=True,
+            help='domain name filter used to identify node if nsid is not set')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--yaml', action='store_true')
     group.add_argument('--zabbix', action='store_true')
     args = parser.parse_args()
     host, port = args.listen.split(":")
     if args.yaml:
-        server = DnsReaderServer((host, int(port)), DnsReaderHanlderYaml, args.directory, args.zabbix_server )
+        server = DnsReaderServer((host, int(port)), DnsReaderHanlderYaml, 
+                args.directory, args.zabbix_server, args.filter_domain )
     elif args.zabbix:
-        server = DnsReaderServer((host, int(port)), DnsReaderHanlderZabbix, args.directory, args.zabbix_server )
+        server = DnsReaderServer((host, int(port)), DnsReaderHanlderZabbix, 
+                args.directory, args.zabbix_server, args.filter_domain )
     server.serve_forever()
 
 if __name__ == "__main__":
