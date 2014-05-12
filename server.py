@@ -46,16 +46,6 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
     def __init__(self, request, client_address, server):
         SocketServer.BaseRequestHandler.__init__(self, request, client_address, server)
 
-    def set_node_name(self, nsid):
-        if nsid == "None":
-            #we can only identify the node if we get the node_name as the qname
-            if self.filter_domain not in qname:
-                return None
-            else:
-                return qname
-        else:
-            return nsid
-       
     def format_qname (self, qname):
         if qname == '.':
             return 'root'
@@ -85,7 +75,10 @@ class DnsReaderHanlder(SocketServer.BaseRequestHandler):
                         self.nsid = str(opt.data)
                         if '.' not in self.nsid:
                             self.nsid = self.nsid.decode("hex")
-            self.node_name = self.set_node_name(self.nsid)
+            if self.nsid:
+                self.node_name = self.nsid
+            elif self.qname.endswith(self.server.filter_domain):
+                self.node_name = self.qname
             for ans in self.message.answer:
                 if ans.rdtype == dns.rdatatype.SOA:
                     self.serial =  ans[0].serial

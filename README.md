@@ -1,4 +1,35 @@
 dnsreader
 =========
 
-script to process dns responses
+These scripts are here to monitor dns anycast deployments.  There are three componets
+
+    * client.py - this is used to send spoofed dns queries to an anycast address
+    * server.py - this is expected to listen on spoofed address:port specifed in the client.  When a packet is recived some preocessing is preformed and results are either written to zabbix or a yaml file
+    * checker.py - this script reads the yaml files produced in the server.py script and prints a rport to stdout (TODO: make this script compatible with nagios)
+
+#Example
+
+In the simplest example i have the following set up.
+
+##Parametrs
+    * domain(s) to monitor: example.com
+        - this is a list of domains we want to check
+    * domain-filter: $(hostname -f)
+        - this filter is used to filter out junk when we dont get an nsid (explained a bit more below)
+    * anycast address: 198.51.100.1
+        - this is the address we will send the spoffed queries to
+    * monitoring server: 192.0.2.1
+        - this is the server we are spoofing and therefore the one that will recive the response
+        
+##probes
+    * domain check: client.py --nsid -s 192.0.2.1 -d 198.51.100.1 -Q example.com
+        - this will send an soa query, with the nsid bit set, for example.com to 198.51.100.1.  the response will be sent to 192.0.2.1
+    * nsid check: ./client.py --nsid -s 192.0.2.1 -d 198.51.100.1 -Q $(hostname -f)
+        - We dont care what the response status of this query is, we just need the reponse to contain the original qname.  At the monitoring server we use this to ensure the qname matches the nsid.  without this the domain checks in the server will never work.   
+
+##server
+    * ./server.py --yaml -f example.net
+        - this will output yaml files for each dnspacket recived.  
+        - the filter option is used for the nsid check. if we recive a response with a qname that matches this filter 
+
+        
