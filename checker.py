@@ -164,7 +164,7 @@ def check_nodes(nodes, results_directory, domains):
 def main():
     ''' main function for using on cli'''
     domains = None
-    parser = argparse.ArgumentParser(description="Deployment script for atlas anchor")
+    parser = argparse.ArgumentParser(description='script to check results from dnsreader server')
     parser.add_argument('-N', '--node-file', default='nodes.txt', 
             help='file containing a list of nodes (one per line) that we should report one')
     parser.add_argument('-R', '--results-directory', metavar='/tmp/dnsdata/', 
