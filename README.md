@@ -10,43 +10,43 @@ These scripts are here to monitor dns anycast deployments.  There are three comp
 * checker.py - this script reads the yaml files produced in the server.py script and prints 
     a rport to stdout (TODO: make this script compatible with nagios)
 
-#Example
+# Example
 
 In the simplest example i have the following set up.
 
-##Parametrs
-#####domain(s) to monitor
+## Parametrs
+##### domain(s) to monitor
 `example.com`
 this is a list of domains we want to check
-#####domain-filter
+##### domain-filter
 `example.net`
 this filter is used to filter out junk when we dont get an nsid (explained below)
-#####anycast address
+##### anycast address
 `198.51.100.1`
 this is the address we will send the spoffed queries to
-#####monitoring server
+##### monitoring server
 `192.0.2.1`
 this is the server we are spoofing and therefore the one that will recive the response
-#####nodes list
+##### nodes list
 `./nodes.txt`
 this is a text file which should contain a list of all the anycast nodes you expect to be sending packets
-        
-##probes
+
+## probes
     
-#####domain check: 
+##### domain check: 
 `./client.py --nsid -s 192.0.2.1 -d 198.51.100.1 -Q example.com`
 this will send an soa query, with the nsid bit set, for example.com to 198.51.100.1.  the response will be sent to 192.0.2.1
-#####nsid check: 
+##### nsid check: 
 `./client.py --nsid -s 192.0.2.1 -d 198.51.100.1 -Q $(hostname -f)`
 We dont care what the response status of this query is, we just need the reponse to contain the original qname.  At the monitoring server we use this to ensure the qname matches the nsid.  without this the domain checks in the server will never work.  
 
-##server
+## server
 `./server.py --yaml -f example.net`
 this will output yaml files for each dnspacket recived.  the filter option is used for the nsid check. if we recive a response that has no nsid and the qname ends with this filter then we will use this value to identify the node.  this allows us to identify nodes that can reach us but are not senting an nsid.
 
 TODO: explain zabbix configuration
 
-##checker
+## checker
 The checker is used to parse the yaml files preduced above and print a report to stdout if any errors are found, intended for a cronjob
 
 `./checker.py -D 'example.com'` this will check for yaml files produced by the server componet and print a report containing errors based on the following checks:
@@ -59,7 +59,7 @@ The checker is used to parse the yaml files preduced above and print a report to
     - the last serial we have matchs the one currently recived from the MNAME for 
         this domain (TODO: should be able to override this)
 
-#Yaml Output
+# Yaml Output
 anycastnode1.ams.example.net.yaml
 ```yaml
 domains:
